@@ -30,6 +30,7 @@ def _reorder(M: np.ndarray, rows: np.ndarray, cols: np.ndarray):
 
 class RankOneSvd:
     """ """
+
     def __init__(self, threshold=1E-4):
         self.threshold = threshold
 
@@ -65,22 +66,37 @@ class RankOneSvd:
                 # print('u = {u}\n v = {v}')
                 self.u_ = u
                 self.v_ = v
-                self.A_sorted_, self.u_sorted_, self.v_sorted_ = _reorder(A, u, v)
+                self.A_sorted_, self.u_sorted_, self.v_sorted_ = _reorder(
+                    A, u, v)
                 return self
 
             gamma_prev = gamma
             u_prev = u
             v_prev = v
-    
+
     def get_row_labels(self):
         du = np.concatenate([[0], np.diff(self.u_sorted_)])
         m = np.mean(du)
         return np.cumsum(du > m)
-    
+
     def get_col_labels(self):
         dv = np.concatenate([[0], np.diff(self.v_sorted_)])
         m = np.mean(dv)
         return np.cumsum(dv > m)
+
+    def get_co_clusters(self):
+        r_idx = self.get_row_labels()
+        c_idx = self.get_col_labels()
+        nr = r_idx[-1]+1
+        nc = c_idx[-1]+1
+        M = np.zeros((nr, nc))
+        for row in range(nr):
+            for col in range(nc):
+                M[row, col] = self.A_sorted_[
+                    np.ix_(r_idx == row, c_idx == col)].sum()
+
+        regions = [*zip(*np.where(M > M.mean()))]
+        return regions, r_idx, c_idx
 
     def plot_original_matrix(self, matrix='A'):
         if matrix == 'A':
@@ -162,3 +178,8 @@ if __name__ == '__main__':
     # r1svd.plot_reordered_matrix(matrix='Sc')
 
     # plt.show()
+
+    c, uidx, vidx = r1svd.get_co_clusters()
+    r1, c1 = c[0]
+    uidx == r1
+    vidx == c1
