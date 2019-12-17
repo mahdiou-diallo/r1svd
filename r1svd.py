@@ -34,7 +34,7 @@ class RankOneSvd:
     def __init__(self, threshold=1E-4):
         self.threshold = threshold
 
-    def fit_transform(self, A: np.ndarray):
+    def fit(self, A: np.ndarray):
         self.A_ = A
         Dr1_A, Dc1_A = _init_diagonal_matrices(A)
 
@@ -73,7 +73,11 @@ class RankOneSvd:
             gamma_prev = gamma
             u_prev = u
             v_prev = v
-
+    
+    def fit_transform(self, A: np.ndarray):
+        self.fit(A)
+        return self.A_sorted_
+    
     def get_row_labels(self):
         du = np.concatenate([[0], np.diff(self.u_sorted_)])
         m = np.mean(du)
@@ -147,8 +151,7 @@ if __name__ == '__main__':
 
     # df = pd.DataFrame(X, columns=columns, index = index)
 
-    r1svd = RankOneSvd()
-    r1svd.fit_transform(X)
+    r1svd = RankOneSvd().fit(X)
 
     # plt.figure()
 
