@@ -5,6 +5,17 @@ from numpy.linalg import norm
 import matplotlib.pyplot as plt
 
 
+def reorder(M: np.ndarray, idx_r: np.ndarray, idx_c: np.ndarray):
+    return M[np.ix_(idx_r, idx_c)]
+
+
+def reorder_df(df: pd.DataFrame, idx_r: np.ndarray, idx_c: np.ndarray):
+    tmp = df.copy()
+    tmp = tmp.iloc[idx_r, :]
+    tmp = tmp.iloc[:, idx_c]
+    return tmp
+
+
 def _rand_unit(n: int):
     x = np.random.rand(n)
     x = np.abs(x)
@@ -20,13 +31,6 @@ def _init_diagonal_matrices(A):
     Dc1_A = np.diag(1/Dc) @ A.T
 
     return Dr1_A, Dc1_A
-
-
-def _reorder(M: np.ndarray, rows: np.ndarray, cols: np.ndarray):
-    idx_r = np.argsort(rows)
-    idx_c = np.argsort(cols)
-    return M[np.ix_(idx_r, idx_c)], rows[idx_r], cols[idx_c]
-
 
 class RankOneSvd:
     """ """
@@ -62,67 +66,73 @@ class RankOneSvd:
             gamma = norm(u - u_prev) + norm(v - v_prev)
 
             if abs(gamma - gamma_prev) <= self.threshold:
-                print(f'Converged in {it} iterations.')
-                # print('u = {u}\n v = {v}')
-                self.u_ = u
-                self.v_ = v
-                self.A_sorted_, self.u_sorted_, self.v_sorted_ = _reorder(
-                    A, u, v)
-                return self
+                break
 
             gamma_prev = gamma
             u_prev = u
             v_prev = v
+        
+        print(f'Converged in {it} iterations.')
+        # print('u = {u}\n v = {v}')
+        self.u_ = u
+        self.v_ = v
+        self.u_order_ = np.argsort(u)
+        self.v_order_ = np.argsort(v)
+        return self
     
     def fit_transform(self, A: np.ndarray):
         self.fit(A)
-        return self.A_sorted_
+        return A[np.ix_(self.u_order_, self.v_order_)]
     
     def get_row_labels(self):
-        du = np.concatenate([[0], np.diff(self.u_sorted_)])
+        du = np.concatenate([[0], np.diff(self.u_[self.u_order_])])
         m = np.mean(du)
         return np.cumsum(du > m)
 
     def get_col_labels(self):
-        dv = np.concatenate([[0], np.diff(self.v_sorted_)])
+        dv = np.concatenate([[0], np.diff(self.v_[self.v_order_])])
         m = np.mean(dv)
         return np.cumsum(dv > m)
 
     def get_co_clusters(self):
         r_idx = self.get_row_labels()
         c_idx = self.get_col_labels()
+        A_sorted = self.A_[np.ix_(self.u_order_, self.v_order_)]
+
         nr = r_idx[-1]+1
         nc = c_idx[-1]+1
         M = np.zeros((nr, nc))
         for row in range(nr):
             for col in range(nc):
-                M[row, col] = self.A_sorted_[
+                M[row, col] = A_sorted[
                     np.ix_(r_idx == row, c_idx == col)].sum()
+        reg_mat = M > M.mean()
+        regions = [*zip(*np.where(reg_mat))]
+        return regions, reg_mat
 
-        regions = [*zip(*np.where(M > M.mean()))]
-        return regions, r_idx, c_idx
-
-    def plot_original_matrix(self, matrix='A'):
-        if matrix == 'A':
-            plt.spy(self.A_)
-            return
-        if matrix == 'Sr':
-            plt.spy(self.A_ @ self.A_.T)
-            return
-        if matrix == 'Sc':
-            plt.spy(self.A_.T @ self.A_)
-            return
-
-    def plot_reordered_matrix(self, matrix='A'):
-        if matrix == 'A':
-            plt.spy(self.A_sorted_)
-            return
-        if matrix == 'Sr':
-            plt.spy(_reorder(self.A_ @ self.A_.T, self.u_, self.u_))
-            return
-        if matrix == 'Sc':
-            plt.spy(_reorder(self.A_.T @ self.A_, self.v_, self.v_))
-            return
+    def plot_matrix(self, matrix='A', ordered=False):
+        if ordered:
+            if matrix == 'A':
+                plt.spy(self.A_[np.ix_(self.u_order_, self.v_order_)])
+                return
+            if matrix == 'Sr':
+                Sr = self.A_ @ self.A_.T
+                plt.spy(Sr[np.ix_(self.u_order_, self.u_order_)])
+                return
+            if matrix == 'Sc':
+                Sc = self.A_.T @ self.A_
+                plt.spy(Sc[np.ix_(self.v_order_, self.v_order_)])
+                return
+        else:
+            if matrix == 'A':
+                plt.spy(self.A_)
+                return
+            if matrix == 'Sr':
+                plt.spy(self.A_ @ self.A_.T)
+                return
+            if matrix == 'Sc':
+                plt.spy(self.A_.T @ self.A_)
+                return        
 
     def plot_u(self, transpose=False):
         if transpose:
@@ -182,7 +192,6 @@ if __name__ == '__main__':
 
     # plt.show()
 
-    c, uidx, vidx = r1svd.get_co_clusters()
-    r1, c1 = c[0]
-    uidx == r1
-    vidx == c1
+    regions, regions_matrix = r1svd.get_co_clusters()
+    plt.spy(regions_matrix)
+    plt.show()
